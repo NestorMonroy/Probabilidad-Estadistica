@@ -272,6 +272,7 @@ def visualizar_resultados(results_df, alpha_df, years, mostrar_pronosticos=True,
 
     return fig_pronosticos, fig_alphas
 
+
 def imprimir_resumen(results_df, alpha_df, years):
     """
     Imprime un resumen de los resultados
@@ -290,7 +291,7 @@ def imprimir_resumen(results_df, alpha_df, years):
     print(alpha_df)
 
 
-# Ahora modificamos la función de análisis completo para incluir estos parámetros
+#  Función de análisis completo para incluir estos parámetros
 def realizar_analisis_completo(data_dict, years, optimize=True, fixed_alpha=0.5,
                                mostrar_pronosticos=True, mostrar_alphas=True):
     """
