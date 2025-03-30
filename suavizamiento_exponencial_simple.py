@@ -344,7 +344,7 @@ if __name__ == "__main__":
 
     # Definir qué gráficos mostrar
     generar_grafico_pronosticos = True  # Cambiar a False para no generar este gráfico
-    generar_grafico_alphas = False  # Cambiar a False para no generar este gráfico
+    generar_grafico_alphas = True  # Cambiar a False para no generar este gráfico
 
     # Realizar el análisis completo con los parámetros de visualización
     resultados, alphas, (fig_pronosticos, fig_alphas) = realizar_analisis_completo(
