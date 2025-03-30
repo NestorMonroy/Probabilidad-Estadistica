@@ -289,10 +289,8 @@ def realizar_analisis_completo(data_dict, years, optimize=True, fixed_alpha=0.5)
 # ======= CÓDIGO PRINCIPAL =======
 if __name__ == "__main__":
     """
-    Punto de entrada principal del programa
-
-    Este bloque se ejecuta solo cuando el script se ejecuta directamente,
-    no cuando se importa como un módulo. El flujo del programa es:
+    
+    El flujo  es:
 
     1. Se definen los datos y parámetros iniciales
     2. Se realiza el análisis completo mediante una llamada a la función principal
