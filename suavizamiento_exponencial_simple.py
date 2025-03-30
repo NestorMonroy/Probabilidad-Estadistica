@@ -159,24 +159,23 @@ def procesar_indicadores(data_dict, years, optimize=True, fixed_alpha=0.5):
     return results_df, alpha_df
 
 
-def visualizar_resultados(results_df, alpha_df, years):
+def visualizar_pronosticos(results_df, years):
     """
-    Genera gráficos con los resultados del análisis
+    Genera el gráfico de líneas de los pronósticos para todos los indicadores
 
     Args:
         results_df (DataFrame): DataFrame con los valores suavizados y pronósticos
-        alpha_df (DataFrame): DataFrame con los alphas óptimos y métricas
         years (list): Lista de años utilizados en el análisis
 
     Returns:
-        tuple: (fig1, fig2) Las figuras generadas
+        matplotlib.figure.Figure: Figura generada con el gráfico de pronósticos
     """
     # Configurar estilo visual
     sns.set_style("whitegrid")
     sns.set_palette("tab10")
 
-    # Gráfico principal de pronósticos
-    fig1, ax1 = plt.subplots(figsize=(14, 8))
+    # Crear figura y ejes
+    fig, ax = plt.subplots(figsize=(14, 8))
 
     # Convertir a formato largo para seaborn
     results_melted = results_df.reset_index().melt(id_vars="Year",
@@ -185,43 +184,93 @@ def visualizar_resultados(results_df, alpha_df, years):
 
     # Gráfico de líneas
     sns.lineplot(data=results_melted, x='Year', y='Value', hue='Indicator',
-                 style='Indicator', markers=True, dashes=False, linewidth=2.5, ax=ax1)
+                 style='Indicator', markers=True, dashes=False, linewidth=2.5, ax=ax)
 
     # Destacar el pronóstico
     forecast_year = years[-1] + 1
     forecast_data = results_melted[results_melted['Year'] == forecast_year]
     sns.scatterplot(data=forecast_data, x='Year', y='Value', hue='Indicator',
-                    style='Indicator', s=100, ax=ax1, legend=False, edgecolor='black')
+                    style='Indicator', s=100, ax=ax, legend=False, edgecolor='black')
 
     # Personalizar el gráfico
-    ax1.set_title(f"Pronósticos de Indicadores para {forecast_year} con Suavizamiento Exponencial",
-                  fontsize=16, fontweight='bold')
-    ax1.set_xlabel("Año", fontsize=12)
-    ax1.set_ylabel("Valor del Indicador (%)", fontsize=12)
-    ax1.set_xticks(years + [forecast_year])
-    ax1.grid(True, linestyle='--', alpha=0.7)
+    ax.set_title(f"Pronósticos de Indicadores para {forecast_year} con Suavizamiento Exponencial",
+                 fontsize=16, fontweight='bold')
+    ax.set_xlabel("Año", fontsize=12)
+    ax.set_ylabel("Valor del Indicador (%)", fontsize=12)
+    ax.set_xticks(years + [forecast_year])
+    ax.grid(True, linestyle='--', alpha=0.7)
 
     # Ajustar la leyenda
     plt.legend(title='Indicadores', bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
 
     plt.tight_layout()
 
-    # Gráfico de alphas óptimos
-    fig2, ax2 = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=alpha_df.index, y='Optimal Alpha', data=alpha_df, ax=ax2)
-    ax2.set_title("Valores Óptimos de Alpha por Indicador", fontsize=14, fontweight='bold')
-    ax2.set_xlabel("Indicador", fontsize=12)
-    ax2.set_ylabel("Alpha Óptimo", fontsize=12)
+    return fig
+
+
+def visualizar_alphas(alpha_df):
+    """
+    Genera el gráfico de barras de los valores óptimos de alpha por indicador
+
+    Args:
+        alpha_df (DataFrame): DataFrame con los alphas óptimos y métricas
+
+    Returns:
+        matplotlib.figure.Figure: Figura generada con el gráfico de alphas
+    """
+    # Crear figura y ejes
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Gráfico de barras
+    sns.barplot(x=alpha_df.index, y='Optimal Alpha', data=alpha_df, ax=ax)
+
+    # Personalizar el gráfico
+    ax.set_title("Valores Óptimos de Alpha por Indicador", fontsize=14, fontweight='bold')
+    ax.set_xlabel("Indicador", fontsize=12)
+    ax.set_ylabel("Alpha Óptimo", fontsize=12)
     plt.xticks(rotation=45)
 
     # Añadir los valores sobre las barras
     for i, v in enumerate(alpha_df['Optimal Alpha']):
-        ax2.text(i, v + 0.02, f"{v:.2f}", ha='center', fontsize=9)
+        ax.text(i, v + 0.02, f"{v:.2f}", ha='center', fontsize=9)
 
     plt.tight_layout()
 
-    return fig1, fig2
+    return fig
 
+
+def visualizar_resultados(results_df, alpha_df, years, mostrar_pronosticos=True, mostrar_alphas=True):
+    """
+    Genera los gráficos seleccionados con los resultados del análisis
+
+    Esta función coordina la generación de visualizaciones según los parámetros
+    booleanos que indican qué gráficos se deben crear.
+
+    Args:
+        results_df (DataFrame): DataFrame con los valores suavizados y pronósticos
+        alpha_df (DataFrame): DataFrame con los alphas óptimos y métricas
+        years (list): Lista de años utilizados en el análisis
+        mostrar_pronosticos (bool): Si es True, genera el gráfico de pronósticos
+        mostrar_alphas (bool): Si es True, genera el gráfico de alphas óptimos
+
+    Returns:
+        tuple: Contiene las figuras generadas (None para las no generadas)
+              (fig_pronosticos, fig_alphas)
+    """
+    fig_pronosticos = None
+    fig_alphas = None
+
+    # Generar gráfico de pronósticos si se solicita
+    if mostrar_pronosticos:
+        fig_pronosticos = visualizar_pronosticos(results_df, years)
+        print("Gráfico de pronósticos generado.")
+
+    # Generar gráfico de alphas óptimos si se solicita
+    if mostrar_alphas:
+        fig_alphas = visualizar_alphas(alpha_df)
+        print("Gráfico de alphas óptimos generado.")
+
+    return fig_pronosticos, fig_alphas
 
 def imprimir_resumen(results_df, alpha_df, years):
     """
@@ -241,13 +290,15 @@ def imprimir_resumen(results_df, alpha_df, years):
     print(alpha_df)
 
 
-def realizar_analisis_completo(data_dict, years, optimize=True, fixed_alpha=0.5):
+# Ahora modificamos la función de análisis completo para incluir estos parámetros
+def realizar_analisis_completo(data_dict, years, optimize=True, fixed_alpha=0.5,
+                               mostrar_pronosticos=True, mostrar_alphas=True):
     """
     Realiza el análisis completo de suavizamiento exponencial
 
     Esta función coordina el flujo completo de trabajo:
     1. Procesa los indicadores para obtener pronósticos
-    2. Visualiza los resultados en gráficos
+    2. Visualiza los resultados en gráficos (según los parámetros)
     3. Imprime un resumen de los resultados
 
     Args:
@@ -255,26 +306,21 @@ def realizar_analisis_completo(data_dict, years, optimize=True, fixed_alpha=0.5)
         years (list): Lista de años correspondientes
         optimize (bool): Si es True, encuentra el alpha óptimo para cada indicador
         fixed_alpha (float): Valor de alpha fijo si optimize es False
+        mostrar_pronosticos (bool): Si es True, genera el gráfico de pronósticos
+        mostrar_alphas (bool): Si es True, genera el gráfico de alphas óptimos
 
     Returns:
         tuple: (results_df, alpha_df, figuras) - DataFrames y figuras generadas
     """
     # 1. PROCESAMIENTO DE DATOS
-    # ------------------------
-    # Esta etapa toma los datos originales y aplica el suavizamiento exponencial
-    # para generar pronósticos para cada indicador.
     print("Iniciando procesamiento de datos...")
     results_df, alpha_df = procesar_indicadores(data_dict, years, optimize, fixed_alpha)
     print("Procesamiento completado.")
 
-    # 2. VISUALIZACIÓN DE RESULTADOS
-    # ----------------------------
-    # Esta etapa genera representaciones gráficas de los resultados:
-    # - Gráfico de líneas con los valores históricos y proyecciones
-    # - Gráfico de barras con los valores óptimos de alpha
-    print("Generando visualizaciones...")
-    figuras = visualizar_resultados(results_df, alpha_df, years)
-    print("Visualizaciones generadas.")
+    # 2. VISUALIZACIÓN DE RESULTADOS (condicional)
+    print("Generando visualizaciones solicitadas...")
+    figuras = visualizar_resultados(results_df, alpha_df, years,
+                                    mostrar_pronosticos, mostrar_alphas)
 
     # 3. PRESENTACIÓN DE RESULTADOS
     # ---------------------------
@@ -287,23 +333,29 @@ def realizar_analisis_completo(data_dict, years, optimize=True, fixed_alpha=0.5)
 
 
 # ======= CÓDIGO PRINCIPAL =======
+# Ejemplo de uso en el bloque principal
 if __name__ == "__main__":
     """
-    
-    El flujo  es:
-
-    1. Se definen los datos y parámetros iniciales
-    2. Se realiza el análisis completo mediante una llamada a la función principal
-    3. Se muestran los gráficos generados
+    Punto de entrada principal del programa
     """
     print("=== ANÁLISIS DE SUAVIZAMIENTO EXPONENCIAL ===")
     print("Iniciando análisis...")
 
-    # Realizar el análisis completo
-    resultados, alphas, (fig1, fig2) = realizar_analisis_completo(data_dict, years, optimize=True)
+    # Definir qué gráficos mostrar
+    generar_grafico_pronosticos = True  # Cambiar a False para no generar este gráfico
+    generar_grafico_alphas = False  # Cambiar a False para no generar este gráfico
 
-    # Mostrar los gráficos
-    print("\nMostrando gráficos...")
-    plt.show()
+    # Realizar el análisis completo con los parámetros de visualización
+    resultados, alphas, (fig_pronosticos, fig_alphas) = realizar_analisis_completo(
+        data_dict,
+        years,
+        optimize=True,
+        mostrar_pronosticos=generar_grafico_pronosticos,
+        mostrar_alphas=generar_grafico_alphas
+    )
+
+    # Mostrar los gráficos generados
+    print("\nMostrando gráficos generados...")
+    plt.show()  # Esto mostrará solo los gráficos que se generaron
 
     print("\nPrograma finalizado.")
