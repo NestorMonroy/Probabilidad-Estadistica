@@ -64,14 +64,14 @@ def definir_codigo_r():
       smoothed_values_dict <- list()
       # Diccionario para almacenar los cálculos detallados
       calculo_detallado <- list()
-
+    
       # Recorrer cada indicador en el diccionario original
       for (indicator_name in names(data_dict)) {
         observed_values <- data_dict[[indicator_name]]
-
+    
         # Inicializar el primer pronóstico como el primer valor observado
         smoothed_values <- c(observed_values[1])  # El primer pronóstico es igual al primer valor observado
-
+    
         # Almacenar cálculos detallados para este indicador
         calculo_indicador <- data.frame(
           Periodo = numeric(0),
@@ -80,7 +80,7 @@ def definir_codigo_r():
           F_t_plus_1 = numeric(0),
           stringsAsFactors = FALSE  # Importante para manejar strings correctamente
         )
-
+    
         # Para el primer periodo, no hay cálculo previo
         calculo_indicador <- rbind(calculo_indicador, data.frame(
           Periodo = 1,
@@ -89,14 +89,14 @@ def definir_codigo_r():
           F_t_plus_1 = observed_values[1],
           stringsAsFactors = FALSE
         ))
-
+    
         # Aplicamos la fórmula del suavizamiento exponencial
         for (t in 2:length(observed_values)) {
           current_forecast <- smoothed_values[t - 1]  # Pronóstico actual (F_t)
           D_t <- observed_values[t]                   # Valor observado actual (D_t)
           next_forecast <- alpha * D_t + (1 - alpha) * current_forecast  # Pronóstico para el siguiente período (F_{t+1})
           smoothed_values <- c(smoothed_values, next_forecast)
-
+    
           calculo_indicador <- rbind(calculo_indicador, data.frame(
             Periodo = t,
             D_t = D_t,
@@ -105,13 +105,13 @@ def definir_codigo_r():
             stringsAsFactors = FALSE
           ))
         }
-
+    
         # Pronosticar para el año 2020
         current_forecast <- smoothed_values[length(smoothed_values)]  # último pronóstico
         D_t <- observed_values[length(observed_values)]  # último valor observado
         next_forecast_2020 <- alpha * D_t + (1 - alpha) * current_forecast
         smoothed_values <- c(smoothed_values, next_forecast_2020)
-
+    
         calculo_indicador <- rbind(calculo_indicador, data.frame(
           Periodo = length(observed_values) + 1,
           D_t = NA,  # No hay valor observado para 2020
@@ -119,17 +119,17 @@ def definir_codigo_r():
           F_t_plus_1 = next_forecast_2020,
           stringsAsFactors = FALSE
         ))
-
+    
         # Guardar la lista de pronósticos en el diccionario de pronósticos
         smoothed_values_dict[[indicator_name]] <- smoothed_values
         calculo_detallado[[indicator_name]] <- calculo_indicador
       }
-
+    
       # Convertir los pronósticos en un DataFrame y agregar los años como una columna
       smoothed_values_df <- as.data.frame(smoothed_values_dict)
       # Usar seq para manejar dinámicamente el número de años basado en los datos
       smoothed_values_df$Year <- seq(2015, 2015 + length(smoothed_values_dict[[1]]) - 1)
-
+    
       # Para facilitar el gráfico con ggplot2, necesitamos un DataFrame en formato largo
       smoothed_values_melted <- reshape2::melt(
         smoothed_values_df, 
@@ -137,7 +137,7 @@ def definir_codigo_r():
         variable.name = "Indicator", 
         value.name = "Value"
       )
-
+    
       # Devolver los resultados como una lista
       return(list(
         smoothed_values_dict = smoothed_values_dict,
@@ -194,58 +194,181 @@ def ejecutar_suavizamiento_exponencial(data_dict, alpha=0.5):
 
 
 # Función para visualizar los resultados
-def visualizar_resultados(data_dict, smoothed_values_df):
+def visualizar_resultados(data_dict, smoothed_values_df, predictions_df=None):
     """
     Crea y guarda un gráfico de los resultados usando matplotlib
 
     Args:
         data_dict: Diccionario con los datos originales
         smoothed_values_df: DataFrame con los valores suavizados
+        predictions_df: DataFrame con las predicciones y tendencias (opcional)
     """
     try:
-        plt.figure(figsize=(12, 8))
+        # Crear una figura con dos subplots (gráfico principal y tabla)
+        fig = plt.figure(figsize=(14, 10))
+
+        # Añadir el gráfico principal (tendencias y pronósticos)
+        ax1 = plt.subplot2grid((3, 3), (0, 0), colspan=3, rowspan=2)
 
         # Para cada indicador, graficamos los valores
         for indicator in data_dict.keys():
             indicator_data = smoothed_values_df[['Year', indicator]]
-            plt.plot(indicator_data['Year'], indicator_data[indicator], '--o', label=indicator)
 
-        plt.title("Pronósticos de Indicadores para el año 2020 utilizando Suavizamiento Exponencial")
-        plt.xlabel("Año")
-        plt.ylabel("Proporción (%)")
-        plt.legend(title="", loc='best')
-        plt.grid(True, linestyle='--', alpha=0.7)
+            # Separar los datos históricos del pronóstico
+            historical = indicator_data[indicator_data['Year'] < 2020]
+            forecast = indicator_data[indicator_data['Year'] == 2020]
+
+            # Graficar datos históricos con línea sólida
+            ax1.plot(historical['Year'], historical[indicator], '-o', label=indicator)
+
+            # Graficar pronóstico con línea punteada y marcador diferente
+            ax1.plot(forecast['Year'], forecast[indicator], '--s', markersize=8,
+                     color=ax1.lines[-1].get_color(), alpha=0.7)
+
+        # Añadir una línea vertical para separar datos históricos de pronósticos
+        ax1.axvline(x=2019.5, color='gray', linestyle='--', alpha=0.5)
+        ax1.text(2019.6, ax1.get_ylim()[0] + 5, 'Pronóstico', fontsize=10, alpha=0.7)
+
+        # Añadir etiquetas y leyenda
+        ax1.set_title("Pronósticos de Indicadores para el año 2020 utilizando Suavizamiento Exponencial",
+                      fontsize=14, fontweight='bold')
+        ax1.set_xlabel("Año", fontsize=12)
+        ax1.set_ylabel("Proporción (%)", fontsize=12)
+        ax1.legend(title="Indicadores", loc='best')
+        ax1.grid(True, linestyle='--', alpha=0.7)
+
+        # Ajustar los límites del eje X para mejor visualización
+        ax1.set_xlim(2014.5, 2020.5)
+
+        # Asegurar que los años en el eje X sean enteros
+        ax1.set_xticks(range(2015, 2021))
+
         plt.tight_layout()
 
         # Guardar el gráfico
         output_file = os.path.join(os.getcwd(), "suavizamiento_exponencial.png")
-        plt.savefig(output_file)
+        plt.savefig(output_file, dpi=300, bbox_inches='tight')
         print(f"Gráfico guardado en: {output_file}")
 
         # Mostrar el gráfico
         plt.show()
+
+        # Si se proporcionó el DataFrame de predicciones, crear un gráfico adicional de barras
+        if predictions_df is not None:
+            # Crear un gráfico de barras para las variaciones
+            plt.figure(figsize=(12, 6))
+
+            # Obtener colores según la tendencia (positiva/negativa)
+            colors = ['green' if x > 0 else 'red' if x < 0 else 'gray' for x in predictions_df['Variación (%)']]
+
+            # Crear gráfico de barras
+            bars = plt.bar(predictions_df['Indicador'], predictions_df['Variación (%)'], color=colors, alpha=0.7)
+
+            # Añadir línea horizontal en cero
+            plt.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+
+            # Añadir etiquetas de valores encima de cada barra
+            for bar in bars:
+                height = bar.get_height()
+                plt.text(bar.get_x() + bar.get_width()/2.,
+                         height + (0.5 if height >= 0 else -1.5),
+                         f'{height:.1f}%',
+                         ha='center', va='bottom', fontsize=9)
+
+            # Configurar etiquetas y título
+            plt.title('Variación porcentual esperada en 2020 respecto a 2019', fontsize=14, fontweight='bold')
+            plt.xlabel('Indicador', fontsize=12)
+            plt.ylabel('Variación (%)', fontsize=12)
+            plt.grid(axis='y', linestyle='--', alpha=0.7)
+            plt.tight_layout()
+
+            # Guardar el gráfico de barras
+            output_file_bars = os.path.join(os.getcwd(), "variacion_porcentual_2020.png")
+            plt.savefig(output_file_bars, dpi=300, bbox_inches='tight')
+            print(f"Gráfico de variaciones guardado en: {output_file_bars}")
+
+            # Mostrar el gráfico
+            plt.show()
+
     except Exception as e:
         print(f"Error al crear el gráfico: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # Función para mostrar predicciones para 2020
-def mostrar_predicciones_2020(smoothed_values_df):
+def mostrar_predicciones_2020(smoothed_values_df, data_dict):
     """
-    Muestra la predicción para el año 2020 de cada indicador
+    Muestra la predicción para el año 2020 de cada indicador en una tabla formateada
 
     Args:
         smoothed_values_df: DataFrame con los valores suavizados
+        data_dict: Diccionario con los datos originales para mostrar el último valor real
     """
     try:
+        # Obtener predicciones para 2020
         predictions_2020 = smoothed_values_df[smoothed_values_df['Year'] == 2020].drop(columns=['Year'])
         predictions_2020_df = predictions_2020.T.reset_index()
         predictions_2020_df.columns = ['Indicador', 'Pronóstico 2020']
-        predictions_2020_df['Pronóstico 2020'] = predictions_2020_df['Pronóstico 2020'].round(2)
 
-        print("\nPronóstico para 2020:")
-        print(predictions_2020_df)
+        # Añadir el último valor real (2019) para comparación
+        ultimo_valor_real = []
+        for indicador in predictions_2020_df['Indicador']:
+            ultimo_valor_real.append(data_dict[indicador][-1])
+
+        predictions_2020_df['Último valor real (2019)'] = ultimo_valor_real
+
+        # Calcular la variación porcentual
+        predictions_2020_df['Variación (%)'] = ((predictions_2020_df['Pronóstico 2020'] -
+                                              predictions_2020_df['Último valor real (2019)']) /
+                                             predictions_2020_df['Último valor real (2019)'] * 100).round(2)
+
+        # Formatear los números para mejor visualización
+        predictions_2020_df['Pronóstico 2020'] = predictions_2020_df['Pronóstico 2020'].round(2)
+        predictions_2020_df['Último valor real (2019)'] = predictions_2020_df['Último valor real (2019)'].round(2)
+
+        # Añadir indicador visual de tendencia
+        def get_trend_indicator(value):
+            if value > 1:
+                return "↑"  # Flecha hacia arriba para aumento
+            elif value < -1:
+                return "↓"  # Flecha hacia abajo para disminución
+            else:
+                return "→"  # Flecha horizontal para estable
+
+        predictions_2020_df['Tendencia'] = predictions_2020_df['Variación (%)'].apply(get_trend_indicator)
+
+        # Crear una tabla más visual
+        print("\n" + "=" * 80)
+        print("PRONÓSTICO DE INDICADORES PARA EL AÑO 2020")
+        print("=" * 80)
+
+        # Imprimir encabezados
+        headers = ['Indicador', 'Último valor real (2019)', 'Pronóstico 2020', 'Variación (%)', 'Tendencia']
+        header_format = "{:<8} {:<25} {:<20} {:<15} {:<10}"
+        print(header_format.format(*headers))
+        print("-" * 80)
+
+        # Imprimir datos
+        row_format = "{:<8} {:<25.2f} {:<20.2f} {:<15.2f} {:<10}"
+        for _, row in predictions_2020_df.iterrows():
+            print(row_format.format(
+                row['Indicador'],
+                row['Último valor real (2019)'],
+                row['Pronóstico 2020'],
+                row['Variación (%)'],
+                row['Tendencia']
+            ))
+
+        print("=" * 80)
+
+        # También devolver el DataFrame para posibles usos adicionales
+        return predictions_2020_df
+
     except Exception as e:
         print(f"Error al mostrar pronósticos para 2020: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # Función para mostrar cálculos detallados
@@ -274,8 +397,7 @@ def mostrar_calculos_detallados(calculos_detallados):
                 if not pd.isna(row['F_t']):
                     print(f"  Pronóstico actual (F_t): {row['F_t']}")
                 print(f"  Pronóstico siguiente (F_t+1): {row['F_t_plus_1']}")
-                print(
-                    f"  Cálculo: F_{periodo + 1} = {row['F_t_plus_1']} = {alpha} * {row['D_t']} + (1 - {alpha}) * {row['F_t']}")
+                print(f"  Cálculo: F_{periodo+1} = {row['F_t_plus_1']} = {alpha} * {row['D_t']} + (1 - {alpha}) * {row['F_t']}")
             else:
                 print(f"\nPronóstico para 2020:")
                 print(f"  Pronóstico actual (F_t): {row['F_t']}")
@@ -323,14 +445,14 @@ def main():
         data_dict, alpha
     )
 
-    # Mostrar predicciones para 2020
-    mostrar_predicciones_2020(smoothed_values_df)
+    # Mostrar predicciones para 2020 y guardar el DataFrame resultante
+    predictions_df = mostrar_predicciones_2020(smoothed_values_df, data_dict)
 
     # Mostrar cálculos detallados para un indicador de ejemplo
     mostrar_calculos_detallados(calculos_detallados)
 
-    # Visualizar los resultados
-    visualizar_resultados(data_dict, smoothed_values_df)
+    # Visualizar los resultados con el DataFrame de predicciones
+    visualizar_resultados(data_dict, smoothed_values_df, predictions_df)
 
 
 # Ejecutar el programa si se llama directamente
