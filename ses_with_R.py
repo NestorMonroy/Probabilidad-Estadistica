@@ -97,7 +97,8 @@ suavizamiento_exponencial <- function(data_dict, alpha = 0.5) {
       D_t = numeric(0),
       F_t = numeric(0),
       F_t_plus_1 = numeric(0),
-      Calculo = character(0)
+      Calculo = character(0),
+      stringsAsFactors = FALSE  # Importante para manejar strings correctamente
     )
 
     # Para el primer periodo, no hay cálculo previo
@@ -106,7 +107,8 @@ suavizamiento_exponencial <- function(data_dict, alpha = 0.5) {
       D_t = observed_values[1],
       F_t = NA,
       F_t_plus_1 = observed_values[1],
-      Calculo = "F_1 = D_1 (valor inicial)"
+      Calculo = "F_1 = D_1 (valor inicial)",
+      stringsAsFactors = FALSE
     ))
 
     # Aplicamos la fórmula del suavizamiento exponencial
@@ -129,7 +131,8 @@ suavizamiento_exponencial <- function(data_dict, alpha = 0.5) {
         D_t = D_t,
         F_t = current_forecast,
         F_t_plus_1 = next_forecast,
-        Calculo = formula_calculo
+        Calculo = formula_calculo,
+        stringsAsFactors = FALSE
       ))
     }
 
@@ -139,10 +142,10 @@ suavizamiento_exponencial <- function(data_dict, alpha = 0.5) {
     next_forecast_2020 <- alpha * D_t + (1 - alpha) * current_forecast
     smoothed_values <- c(smoothed_values, next_forecast_2020)
 
-    # Almacenar los cálculos detallados para el pronóstico 2020 - CAMBIADO × POR * PARA EVITAR PROBLEMAS DE CODIFICACIÓN
+    # Almacenar los cálculos detallados para el pronóstico 2020 - ELIMINADOS CARACTERES ACENTUADOS
     t <- length(observed_values) + 1
     formula_calculo <- sprintf(
-      "F_%d = %.1f * %.1f + (1 - %.1f) * %.1f = %.1f * %.1f + %.1f * %.1f = %.3f + %.3f = %.3f (Pronóstico 2020)",
+      "F_%d = %.1f * %.1f + (1 - %.1f) * %.1f = %.1f * %.1f + %.1f * %.1f = %.3f + %.3f = %.3f (Pronostico 2020)",
       t, alpha, D_t, alpha, current_forecast, 
       alpha, D_t, (1-alpha), current_forecast,
       alpha * D_t, (1-alpha) * current_forecast, next_forecast_2020
@@ -153,11 +156,15 @@ suavizamiento_exponencial <- function(data_dict, alpha = 0.5) {
       D_t = NA,  # No hay valor observado para 2020
       F_t = current_forecast,
       F_t_plus_1 = next_forecast_2020,
-      Calculo = formula_calculo
+      Calculo = formula_calculo,
+      stringsAsFactors = FALSE
     ))
 
     # Guardar la lista de pronósticos en el diccionario de pronósticos
     smoothed_values_dict[[indicator_name]] <- smoothed_values
+
+    # Importante: forzar la conversión de strings para evitar problemas de codificación
+    calculo_indicador$Calculo <- as.character(calculo_indicador$Calculo)
     calculo_detallado[[indicator_name]] <- calculo_indicador
   }
 
@@ -169,12 +176,27 @@ suavizamiento_exponencial <- function(data_dict, alpha = 0.5) {
   # Para facilitar el gráfico con ggplot2, necesitamos un DataFrame en formato largo
   smoothed_values_melted <- reshape2::melt(smoothed_values_df, id.vars = "Year", variable.name = "Indicator", value.name = "Value")
 
+  # Crear versiones simplificadas de los cálculos detallados para facilitar conversión
+  calculo_simple <- list()
+  for (indicator_name in names(data_dict)) {
+    df <- calculo_detallado[[indicator_name]]
+    # Crear un dataframe más simple sin la columna problemática
+    df_simple <- data.frame(
+      Periodo = df$Periodo,
+      D_t = df$D_t,
+      F_t = df$F_t,
+      F_t_plus_1 = df$F_t_plus_1,
+      stringsAsFactors = FALSE
+    )
+    calculo_simple[[indicator_name]] <- df_simple
+  }
+
   # Devolver los resultados como una lista
   return(list(
     smoothed_values_dict = smoothed_values_dict,
     smoothed_values_df = smoothed_values_df,
     smoothed_values_melted = smoothed_values_melted,
-    calculo_detallado = calculo_detallado
+    calculo_simple = calculo_simple  # Versión simplificada sin textos para facilitar conversión
   ))
 }
 
@@ -183,8 +205,8 @@ crear_grafico <- function(smoothed_values_melted) {
   ggplot2::ggplot(data = smoothed_values_melted, ggplot2::aes(x = Year, y = Value, color = Indicator, group = Indicator)) +
     ggplot2::geom_line(linetype = "dashed") +
     ggplot2::geom_point() +
-    ggplot2::labs(title = "Pronósticos de Indicadores para el año 2020 utilizando Suavizamiento Exponencial",
-         x = "Año", y = "Proporción (%)") +
+    ggplot2::labs(title = "Pronosticos de Indicadores para el año 2020 utilizando Suavizamiento Exponencial",
+         x = "Año", y = "Proporcion (%)") +
     ggplot2::theme_minimal() +
     ggplot2::theme(legend.title = ggplot2::element_blank())
 }
@@ -213,22 +235,16 @@ smoothed_values_dict = {k: list(v) for k, v in zip(results[0].names, list(result
 smoothed_values_df = pandas2ri.rpy2py(results[1])
 smoothed_values_melted = pandas2ri.rpy2py(results[2])
 
-# Obtener los cálculos detallados con manejo de excepciones mejorado
+# Convertir los cálculos simplificados
+calculos_detallados = {}
 try:
-    calculos_detallados = {}
-    for i, k in enumerate(results[3].names):
-        try:
-            # Acceder a cada elemento individualmente y convertirlo correctamente
-            r_df = results[3][i]
-            # Asegurar que estamos tratando con DataFrames
-            if isinstance(r_df, robjects.vectors.DataFrame):
-                calculos_detallados[k] = pandas2ri.rpy2py(r_df)
-            else:
-                print(f"El objeto para {k} no es un DataFrame: {type(r_df)}")
-        except Exception as e:
-            print(f"Error al convertir cálculos para el indicador {k}: {e}")
+    calculos_simple_r = results[3]
+    for i, k in enumerate(calculos_simple_r.names):
+        # Usar la conversión directa para la versión simplificada
+        df_simple = pandas2ri.rpy2py(calculos_simple_r[i])
+        calculos_detallados[k] = df_simple
 except Exception as e:
-    print(f"Error general en conversión de cálculos: {e}")
+    print(f"Error al convertir cálculos simplificados: {e}")
     calculos_detallados = {}
 
 # Crear el gráfico en R y guardarlo con manejo de errores mejorado
@@ -261,28 +277,36 @@ try:
 except Exception as e:
     print(f"Error al mostrar pronósticos para 2020: {e}")
 
-# Mostrar cálculos detallados para un indicador de ejemplo (el primero)
+# Mostrar cálculos detallados simplificados para un indicador de ejemplo
 if calculos_detallados:
     try:
-        print("\nCálculos detallados para el indicador:", list(calculos_detallados.keys())[0])
-        ejemplo_calculo = calculos_detallados[list(calculos_detallados.keys())[0]]
-        for _, row in ejemplo_calculo.iterrows():
-            if not pd.isna(row['D_t']):
-                print(f"\nPeríodo {int(row['Periodo'])} (Año {2014 + int(row['Periodo'])}):")
-                print(f"  Valor real (D_t): {row['D_t']}")
-                if not pd.isna(row['F_t']):
-                    print(f"  Pronóstico actual (F_t): {row['F_t']}")
-                print(f"  Pronóstico siguiente (F_{{t+1}}): {row['F_t_plus_1']}")
-                print(f"  Cálculo: {row['Calculo']}")
-            else:
-                print(f"\nPronóstico para 2020:")
-                print(f"  Pronóstico actual (F_t): {row['F_t']}")
-                print(f"  Pronóstico 2020 (F_{{t+1}}): {row['F_t_plus_1']}")
-                print(f"  Cálculo: {row['Calculo']}")
+        indicator_key = list(calculos_detallados.keys())[0]
+        print("\nCálculos detallados para el indicador:", indicator_key)
+        ejemplo_calculo = calculos_detallados[indicator_key]
 
-        print("\nPara ver los cálculos detallados de otros indicadores, modifique el código.")
+        if ejemplo_calculo is not None:
+            for _, row in ejemplo_calculo.iterrows():
+                periodo = row['Periodo']
+                if not pd.isna(row['D_t']):
+                    print(f"\nPeríodo {int(periodo)} (Año {2014 + int(periodo)}):")
+                    print(f"  Valor real (D_t): {row['D_t']}")
+                    if 'F_t' in row and not pd.isna(row['F_t']):
+                        print(f"  Pronóstico actual (F_t): {row['F_t']}")
+                    print(f"  Pronóstico siguiente (F_t+1): {row['F_t_plus_1']}")
+                else:
+                    print(f"\nPronóstico para 2020:")
+                    print(f"  Pronóstico actual (F_t): {row['F_t']}")
+                    print(f"  Pronóstico 2020 (F_t+1): {row['F_t_plus_1']}")
+        else:
+            print("No se pudieron convertir los cálculos detallados para este indicador.")
+
+        print("\nNota: Se ha simplificado la salida para evitar problemas de codificación.")
+        print("Para ver los cálculos detallados de otros indicadores, modifique el código.")
     except Exception as e:
         print(f"Error al mostrar cálculos detallados: {e}")
+        import traceback
+
+        traceback.print_exc()
 
 # También podemos mostrar el gráfico usando matplotlib para verlo directamente en Python
 try:
