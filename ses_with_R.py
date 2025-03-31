@@ -11,7 +11,7 @@ from rpy2.robjects.packages import importr, PackageNotInstalledError
 Implementación del Suavizamiento Exponencial Simple
 
 La fórmula utilizada es:
-F_{t+1} = α × D_t + (1 - α) × F_t
+F_{t+1} = α * D_t + (1 - α) * F_t
 
 Donde:
 F_{t+1} = Pronóstico exponencialmente suavizado para el siguiente período
@@ -28,7 +28,7 @@ print("\n" + "=" * 80)
 print("SUAVIZAMIENTO EXPONENCIAL SIMPLE")
 print("=" * 80)
 print("\nFórmula:")
-print("F_{t+1} = α × D_t + (1 - α) × F_t")
+print("F_{t+1} = α * D_t + (1 - α) * F_t")
 print("\nDonde:")
 print("F_{t+1} = Pronóstico exponencialmente suavizado para el siguiente período")
 print("F_t     = Pronóstico exponencialmente suavizado para el período actual")
@@ -116,9 +116,9 @@ suavizamiento_exponencial <- function(data_dict, alpha = 0.5) {
       next_forecast <- alpha * D_t + (1 - alpha) * current_forecast  # Pronóstico para el siguiente período (F_{t+1})
       smoothed_values <- c(smoothed_values, next_forecast)
 
-      # Almacenar los cálculos detallados
+      # Almacenar los cálculos detallados - CAMBIADO × POR * PARA EVITAR PROBLEMAS DE CODIFICACIÓN
       formula_calculo <- sprintf(
-        "F_%d = %.1f × %.1f + (1 - %.1f) × %.1f = %.1f × %.1f + %.1f × %.1f = %.3f + %.3f = %.3f",
+        "F_%d = %.1f * %.1f + (1 - %.1f) * %.1f = %.1f * %.1f + %.1f * %.1f = %.3f + %.3f = %.3f",
         t, alpha, D_t, alpha, current_forecast, 
         alpha, D_t, (1-alpha), current_forecast,
         alpha * D_t, (1-alpha) * current_forecast, next_forecast
@@ -139,10 +139,10 @@ suavizamiento_exponencial <- function(data_dict, alpha = 0.5) {
     next_forecast_2020 <- alpha * D_t + (1 - alpha) * current_forecast
     smoothed_values <- c(smoothed_values, next_forecast_2020)
 
-    # Almacenar los cálculos detallados para el pronóstico 2020
+    # Almacenar los cálculos detallados para el pronóstico 2020 - CAMBIADO × POR * PARA EVITAR PROBLEMAS DE CODIFICACIÓN
     t <- length(observed_values) + 1
     formula_calculo <- sprintf(
-      "F_%d = %.1f × %.1f + (1 - %.1f) × %.1f = %.1f × %.1f + %.1f × %.1f = %.3f + %.3f = %.3f (Pronóstico 2020)",
+      "F_%d = %.1f * %.1f + (1 - %.1f) * %.1f = %.1f * %.1f + %.1f * %.1f = %.3f + %.3f = %.3f (Pronóstico 2020)",
       t, alpha, D_t, alpha, current_forecast, 
       alpha, D_t, (1-alpha), current_forecast,
       alpha * D_t, (1-alpha) * current_forecast, next_forecast_2020
@@ -218,8 +218,13 @@ try:
     calculos_detallados = {}
     for i, k in enumerate(results[3].names):
         try:
-            # Acceder a cada elemento individualmente
-            calculos_detallados[k] = pandas2ri.rpy2py(results[3][i])
+            # Acceder a cada elemento individualmente y convertirlo correctamente
+            r_df = results[3][i]
+            # Asegurar que estamos tratando con DataFrames
+            if isinstance(r_df, robjects.vectors.DataFrame):
+                calculos_detallados[k] = pandas2ri.rpy2py(r_df)
+            else:
+                print(f"El objeto para {k} no es un DataFrame: {type(r_df)}")
         except Exception as e:
             print(f"Error al convertir cálculos para el indicador {k}: {e}")
 except Exception as e:
@@ -248,33 +253,38 @@ except Exception as e:
 
 # Mostrar los resultados en Python
 print("\nPronóstico para 2020:")
-predictions_2020 = smoothed_values_df[smoothed_values_df['Year'] == 2020].drop(columns=['Year'])
-predictions_2020_df = predictions_2020.T.reset_index()
-predictions_2020_df.columns = ['Indicador', 'Pronóstico 2020']
-print(predictions_2020_df)
+try:
+    predictions_2020 = smoothed_values_df[smoothed_values_df['Year'] == 2020].drop(columns=['Year'])
+    predictions_2020_df = predictions_2020.T.reset_index()
+    predictions_2020_df.columns = ['Indicador', 'Pronóstico 2020']
+    print(predictions_2020_df)
+except Exception as e:
+    print(f"Error al mostrar pronósticos para 2020: {e}")
 
 # Mostrar cálculos detallados para un indicador de ejemplo (el primero)
 if calculos_detallados:
-    print("\nCálculos detallados para el indicador:", list(calculos_detallados.keys())[0])
-    ejemplo_calculo = calculos_detallados[list(calculos_detallados.keys())[0]]
-    for _, row in ejemplo_calculo.iterrows():
-        if not pd.isna(row['D_t']):
-            print(f"\nPeríodo {int(row['Periodo'])} (Año {2014 + int(row['Periodo'])}):")
-            print(f"  Valor real (D_t): {row['D_t']}")
-            if not pd.isna(row['F_t']):
+    try:
+        print("\nCálculos detallados para el indicador:", list(calculos_detallados.keys())[0])
+        ejemplo_calculo = calculos_detallados[list(calculos_detallados.keys())[0]]
+        for _, row in ejemplo_calculo.iterrows():
+            if not pd.isna(row['D_t']):
+                print(f"\nPeríodo {int(row['Periodo'])} (Año {2014 + int(row['Periodo'])}):")
+                print(f"  Valor real (D_t): {row['D_t']}")
+                if not pd.isna(row['F_t']):
+                    print(f"  Pronóstico actual (F_t): {row['F_t']}")
+                print(f"  Pronóstico siguiente (F_{{t+1}}): {row['F_t_plus_1']}")
+                print(f"  Cálculo: {row['Calculo']}")
+            else:
+                print(f"\nPronóstico para 2020:")
                 print(f"  Pronóstico actual (F_t): {row['F_t']}")
-            print(f"  Pronóstico siguiente (F_{{t+1}}): {row['F_t_plus_1']}")
-            print(f"  Cálculo: {row['Calculo']}")
-        else:
-            print(f"\nPronóstico para 2020:")
-            print(f"  Pronóstico actual (F_t): {row['F_t']}")
-            print(f"  Pronóstico 2020 (F_{{t+1}}): {row['F_t_plus_1']}")
-            print(f"  Cálculo: {row['Calculo']}")
+                print(f"  Pronóstico 2020 (F_{{t+1}}): {row['F_t_plus_1']}")
+                print(f"  Cálculo: {row['Calculo']}")
 
-    print("\nPara ver los cálculos detallados de otros indicadores, modifique el código.")
+        print("\nPara ver los cálculos detallados de otros indicadores, modifique el código.")
+    except Exception as e:
+        print(f"Error al mostrar cálculos detallados: {e}")
 
 # También podemos mostrar el gráfico usando matplotlib para verlo directamente en Python
-# Convertimos el DataFrame largo a un formato adecuado para matplotlib
 try:
     plt.figure(figsize=(12, 8))
 
@@ -289,6 +299,11 @@ try:
     plt.legend(title="")
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
+
+    # Guardar el gráfico de matplotlib
+    plt_output_file = os.path.join(os.getcwd(), "suavizamiento_exponencial_matplotlib.png")
+    plt.savefig(plt_output_file)
+    print(f"Gráfico de matplotlib guardado en: {plt_output_file}")
 
     # Mostrar el gráfico
     plt.show()
